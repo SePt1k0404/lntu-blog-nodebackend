@@ -1,26 +1,50 @@
-import express from "express";
-import morgan from "morgan";
-import cors from "cors";
+require('dotenv').config();
 
-import contactsRouter from "./routes/contactsRouter.js";
+const express = require('express');
+const expressLayout = require('express-ejs-layouts');
+const methodOverride = require('method-override');
+const cookieParser = require('cookie-parser');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
+
+const connectDB = require('./server/config/db');
+const { isActiveRoute } = require('./server/helpers/routeHelpers');
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+  
+// Connect to DB
+connectDB();
 
-app.use(morgan("tiny"));
-app.use(cors());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cookieParser());
+app.use(methodOverride('_method'));
 
-app.use("/api/contacts", contactsRouter);
+app.use(session({
+  secret: 'keyboard cat',
+  resave: false,
+  saveUninitialized: true,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI
+  }),
+  //cookie: { maxAge: new Date ( Date.now() + (3600000) ) } 
+}));
 
-app.use((_, res) => {
-  res.status(404).json({ message: "Route not found" });
-});
+app.use(express.static('public'));
 
-app.use((err, req, res, next) => {
-  const { status = 500, message = "Server error" } = err;
-  res.status(status).json({ message });
-});
+// Templating Engine
+app.use(expressLayout);
+app.set('layout', './layouts/main');
+app.set('view engine', 'ejs');
 
-app.listen(3000, () => {
-  console.log("Server is running. Use our API on port: 3000");
+
+app.locals.isActiveRoute = isActiveRoute; 
+
+
+app.use('/', require('./server/routes/main'));
+app.use('/', require('./server/routes/admin'));
+
+app.listen(PORT, ()=> {
+  console.log(`App listening on port ${PORT}`);
 });
